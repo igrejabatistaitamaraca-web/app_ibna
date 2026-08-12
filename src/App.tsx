@@ -310,118 +310,179 @@ const MainDashboardApp: React.FC = () => {
 
   // --- NOTIFICAÇÕES ACTIONS ---
   const handleSaveNotificacao = async (data: Partial<Notificacao>) => {
+    const client = getSupabaseClient();
     const isNew = !data.id;
-    const newId = data.id || 'notif_' + Date.now();
-    const itemToSave: Notificacao = {
-      id: newId,
-      titulo: data.titulo || 'Novo Aviso',
-      mensagem: data.mensagem || '',
-      categoria: data.categoria || 'Geral',
-      destino: data.destino || null,
-      audiencias: data.audiencias || ['todos'],
-      data_agendamento: data.data_agendamento || new Date().toISOString(),
-      data_expiracao: data.data_expiracao || null,
-      notificar: data.notificar ?? true,
-      ativo: data.ativo ?? true,
-      criado_em: data.criado_em || new Date().toISOString(),
-    };
 
     try {
-      const client = getSupabaseClient();
-      if (isNew) {
-        await client.from('notificacoes').insert([itemToSave]);
-      } else {
-        await client.from('notificacoes').update(itemToSave).eq('id', newId);
+      const {
+        data: { session },
+        error: sessionError,
+      } = await client.auth.getSession();
+
+      if (sessionError) throw sessionError;
+      if (!session?.user) {
+        throw new Error('Sessão administrativa não encontrada. Faça login novamente.');
       }
-    } catch (err) {
-      console.warn('DB Save Notificacao:', err);
-    }
 
-    setNotificacoes((prev) =>
-      isNew ? [itemToSave, ...prev] : prev.map((n) => (n.id === newId ? itemToSave : n))
-    );
-
-    // If enqueued for push, create item in pushQueue
-    if (itemToSave.notificar && itemToSave.ativo) {
-      const pushItem: PushDispatchItem = {
-        id: 'pq_' + Date.now(),
-        notificacao_id: newId,
-        topico: itemToSave.audiencias.includes('todos') ? 'ibna_todos' : 'ibna_membros',
-        audiencia: itemToSave.audiencias.join(','),
-        status: 'pendente',
-        tentativas: 0,
-        ultimo_erro: null,
-        processado_em: null,
-        criado_em: new Date().toISOString(),
-        notificacoes: {
-          titulo: itemToSave.titulo,
-          mensagem: itemToSave.mensagem,
-        },
+      const payload = {
+        titulo: data.titulo?.trim() || 'Novo Aviso',
+        mensagem: data.mensagem?.trim() || '',
+        categoria: data.categoria || 'Geral',
+        destino: data.destino || null,
+        audiencias: data.audiencias?.length ? data.audiencias : ['todos'],
+        data_agendamento: data.data_agendamento || new Date().toISOString(),
+        data_expiracao: data.data_expiracao || null,
+        notificar: data.notificar ?? true,
+        ativo: data.ativo ?? true,
       };
 
-      try {
-        const client = getSupabaseClient();
-        await client.from('push_dispatch_queue').insert([{
-          id: pushItem.id,
-          notificacao_id: pushItem.notificacao_id,
-          topico: pushItem.topico,
-          audiencia: pushItem.audiencia,
-          status: pushItem.status,
-          tentativas: pushItem.tentativas,
-        }]);
-      } catch (err) {
-        console.warn('DB Push Queue insert:', err);
+      console.log('[IBNA ADM] Salvando notificação:', {
+        userId: session.user.id,
+        isNew,
+        payload,
+      });
+
+      if (isNew) {
+        const { data: saved, error } = await client
+          .from('notificacoes')
+          .insert(payload)
+          .select()
+          .single();
+
+        if (error) throw new Error(`Não foi possível salvar o aviso: ${error.message}`);
+        if (!saved) throw new Error('O Supabase não retornou a notificação criada.');
+
+        const normalized = normalizeNotificacao(saved);
+        setNotificacoes((prev) => [normalized, ...prev]);
+
+        // A fila de push deve ser criada pelo trigger do banco.
+        await loadAllData();
+        return normalized;
       }
 
-      setPushQueue((prev) => [pushItem, ...prev]);
+      if (!data.id) throw new Error('ID da notificação não encontrado.');
+
+      const { data: saved, error } = await client
+        .from('notificacoes')
+        .update(payload)
+        .eq('id', data.id)
+        .select()
+        .single();
+
+      if (error) throw new Error(`Não foi possível atualizar o aviso: ${error.message}`);
+      if (!saved) throw new Error('O Supabase não retornou a notificação atualizada.');
+
+      const normalized = normalizeNotificacao(saved);
+      setNotificacoes((prev) =>
+        prev.map((n) => (n.id === normalized.id ? normalized : n))
+      );
+
+      await loadAllData();
+      return normalized;
+    } catch (err) {
+      console.error('[IBNA ADM] Erro ao salvar notificação:', err);
+      if (err instanceof Error) throw err;
+      throw new Error('Erro desconhecido ao salvar a notificação.');
     }
   };
 
   const handleDeleteNotificacao = async (id: string) => {
-    try {
-      const client = getSupabaseClient();
-      await client.from('notificacoes').delete().eq('id', id);
-    } catch (err) {
-      console.warn('DB delete notificacao:', err);
+    const client = getSupabaseClient();
+
+    const { error } = await client.from('notificacoes').delete().eq('id', id);
+    if (error) {
+      console.error('[IBNA ADM] Erro ao excluir notificação:', error);
+      throw new Error(`Não foi possível excluir o aviso: ${error.message}`);
     }
+
     setNotificacoes((prev) => prev.filter((n) => n.id !== id));
+    await loadAllData();
   };
 
   const handleToggleAtivoNotificacao = async (id: string, currentAtivo: boolean) => {
+    const client = getSupabaseClient();
     const updatedAtivo = !currentAtivo;
-    try {
-      const client = getSupabaseClient();
-      await client.from('notificacoes').update({ ativo: updatedAtivo }).eq('id', id);
-    } catch (err) {
-      console.warn('DB update notificacao ativo:', err);
+
+    const { data: saved, error } = await client
+      .from('notificacoes')
+      .update({ ativo: updatedAtivo })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('[IBNA ADM] Erro ao alterar status da notificação:', error);
+      throw new Error(`Não foi possível alterar o aviso: ${error.message}`);
     }
-    setNotificacoes((prev) => prev.map((n) => (n.id === id ? { ...n, ativo: updatedAtivo } : n)));
+
+    if (!saved) throw new Error('O Supabase não retornou o aviso atualizado.');
+
+    const normalized = normalizeNotificacao(saved);
+    setNotificacoes((prev) =>
+      prev.map((n) => (n.id === normalized.id ? normalized : n))
+    );
   };
 
   // --- GENERIC CRUD HANDLERS FOR OTHER CONTENT ---
+  // O ID de novos registros NÃO é criado no frontend.
+  // O PostgreSQL gera o UUID automaticamente.
   const createSaveHandler = <T extends { id: string }>(
     tableName: string,
-    setter: React.Dispatch<React.SetStateAction<T[]>>
+    setter: React.Dispatch<React.SetStateAction<T[]>>,
+    normalizer?: (row: any) => T
   ) => {
     return async (data: Partial<T>) => {
+      const client = getSupabaseClient();
       const isNew = !data.id;
-      const newId = data.id || 'item_' + Date.now();
-      const itemToSave = { ...data, id: newId } as unknown as T;
 
-      try {
-        const client = getSupabaseClient();
-        if (isNew) {
-          await client.from(tableName).insert([itemToSave]);
-        } else {
-          await client.from(tableName).update(itemToSave).eq('id', newId);
-        }
-      } catch (err) {
-        console.warn(`DB ${tableName} save:`, err);
+      const {
+        data: { session },
+        error: sessionError,
+      } = await client.auth.getSession();
+
+      if (sessionError) throw sessionError;
+      if (!session?.user) {
+        throw new Error('Sessão administrativa não encontrada. Faça login novamente.');
       }
 
-      setter((prev) =>
-        isNew ? [itemToSave, ...prev] : prev.map((item) => (item.id === newId ? itemToSave : item))
-      );
+      const { id, ...payload } = data as Partial<T> & { id?: string };
+
+      if (isNew) {
+        const { data: saved, error } = await client
+          .from(tableName)
+          .insert(payload)
+          .select()
+          .single();
+
+        if (error) {
+          console.error(`[IBNA ADM] Erro INSERT ${tableName}:`, error);
+          throw new Error(`Erro ao salvar em ${tableName}: ${error.message}`);
+        }
+        if (!saved) throw new Error(`O Supabase não retornou o registro criado em ${tableName}.`);
+
+        const item = normalizer ? normalizer(saved) : (saved as T);
+        setter((prev) => [item, ...prev]);
+        return item;
+      }
+
+      if (!id) throw new Error(`ID não encontrado para atualizar ${tableName}.`);
+
+      const { data: saved, error } = await client
+        .from(tableName)
+        .update(payload)
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) {
+        console.error(`[IBNA ADM] Erro UPDATE ${tableName}:`, error);
+        throw new Error(`Erro ao atualizar ${tableName}: ${error.message}`);
+      }
+      if (!saved) throw new Error(`O Supabase não retornou o registro atualizado em ${tableName}.`);
+
+      const item = normalizer ? normalizer(saved) : (saved as T);
+      setter((prev) => prev.map((current) => (current.id === id ? item : current)));
+      return item;
     };
   };
 
@@ -430,62 +491,108 @@ const MainDashboardApp: React.FC = () => {
     setter: React.Dispatch<React.SetStateAction<T[]>>
   ) => {
     return async (id: string) => {
-      try {
-        const client = getSupabaseClient();
-        await client.from(tableName).delete().eq('id', id);
-      } catch (err) {
-        console.warn(`DB ${tableName} delete:`, err);
+      const client = getSupabaseClient();
+
+      const { error } = await client.from(tableName).delete().eq('id', id);
+      if (error) {
+        console.error(`[IBNA ADM] Erro DELETE ${tableName}:`, error);
+        throw new Error(`Erro ao excluir de ${tableName}: ${error.message}`);
       }
+
       setter((prev) => prev.filter((item) => item.id !== id));
     };
   };
 
-  const handleSaveLouvor = createSaveHandler<DicaLouvor>('dicas_louvor', setLouvorItems);
+  const handleSaveLouvor = createSaveHandler<DicaLouvor>(
+    'dicas_louvor',
+    setLouvorItems,
+    normalizeDicaLouvor
+  );
   const handleDeleteLouvor = createDeleteHandler<DicaLouvor>('dicas_louvor', setLouvorItems);
 
-  const handleSaveEstudo = createSaveHandler<EstudoBiblico>('estudos_biblicos', setEstudosItems);
+  const handleSaveEstudo = createSaveHandler<EstudoBiblico>(
+    'estudos_biblicos',
+    setEstudosItems,
+    normalizeEstudo
+  );
   const handleDeleteEstudo = createDeleteHandler<EstudoBiblico>('estudos_biblicos', setEstudosItems);
 
-  const handleSaveMensagem = createSaveHandler<MensagemBiblica>('mensagens_biblicas', setMensagensItems);
+  const handleSaveMensagem = createSaveHandler<MensagemBiblica>(
+    'mensagens_biblicas',
+    setMensagensItems,
+    normalizeMensagem
+  );
   const handleDeleteMensagem = createDeleteHandler<MensagemBiblica>('mensagens_biblicas', setMensagensItems);
 
-  const handleSaveMomento = createSaveHandler<Momento>('momentos', setMomentos);
+  const handleSaveMomento = createSaveHandler<Momento>(
+    'momentos',
+    setMomentos,
+    normalizeMomento
+  );
   const handleDeleteMomento = createDeleteHandler<Momento>('momentos', setMomentos);
 
   const handleAddFotoMomento = async (momentoId: string, fotoUrl: string, legenda?: string) => {
-    const newFoto: MomentoFoto = {
-      id: 'foto_' + Date.now(),
+    const client = getSupabaseClient();
+
+    const {
+      data: { session },
+      error: sessionError,
+    } = await client.auth.getSession();
+
+    if (sessionError) throw sessionError;
+    if (!session?.user) {
+      throw new Error('Sessão administrativa não encontrada. Faça login novamente.');
+    }
+
+    const payload = {
       momento_id: momentoId,
       foto_url: fotoUrl,
       legenda: legenda || null,
-      ordem: momentoFotos.length + 1,
-      criado_em: new Date().toISOString(),
+      ordem: momentoFotos.filter((foto) => foto.momento_id === momentoId).length + 1,
+      ativo: true,
     };
 
-    try {
-      const client = getSupabaseClient();
-      await client.from('momento_fotos').insert([newFoto]);
-    } catch (err) {
-      console.warn('DB foto insert:', err);
-    }
+    const { data: saved, error } = await client
+      .from('momento_fotos')
+      .insert(payload)
+      .select()
+      .single();
 
-    setMomentoFotos((prev) => [...prev, newFoto]);
+    if (error) {
+      console.error('[IBNA ADM] Erro INSERT momento_fotos:', error);
+      throw new Error(`Não foi possível salvar a foto: ${error.message}`);
+    }
+    if (!saved) throw new Error('O Supabase não retornou a foto criada.');
+
+    const normalized = normalizeMomentoFoto(saved);
+    setMomentoFotos((prev) => [...prev, normalized]);
+    return normalized;
   };
 
   const handleDeleteFotoMomento = async (id: string) => {
-    try {
-      const client = getSupabaseClient();
-      await client.from('momento_fotos').delete().eq('id', id);
-    } catch (err) {
-      console.warn('DB foto delete:', err);
+    const client = getSupabaseClient();
+
+    const { error } = await client.from('momento_fotos').delete().eq('id', id);
+    if (error) {
+      console.error('[IBNA ADM] Erro DELETE momento_fotos:', error);
+      throw new Error(`Não foi possível excluir a foto: ${error.message}`);
     }
+
     setMomentoFotos((prev) => prev.filter((f) => f.id !== id));
   };
 
-  const handleSaveCalendario = createSaveHandler<EventoCalendario>('calendario', setCalendarioItems);
+  const handleSaveCalendario = createSaveHandler<EventoCalendario>(
+    'calendario',
+    setCalendarioItems,
+    normalizeCalendario
+  );
   const handleDeleteCalendario = createDeleteHandler<EventoCalendario>('calendario', setCalendarioItems);
 
-  const handleSaveSobre = createSaveHandler<SobreIgreja>('sobre', setSobreItems);
+  const handleSaveSobre = createSaveHandler<SobreIgreja>(
+    'sobre',
+    setSobreItems,
+    normalizeSobre
+  );
   const handleDeleteSobre = createDeleteHandler<SobreIgreja>('sobre', setSobreItems);
 
   const handleCreateVersiculoNotification = async (v: BibliaVersiculo) => {
