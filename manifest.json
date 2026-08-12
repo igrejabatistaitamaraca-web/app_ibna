@@ -1,0 +1,31 @@
+{
+  "id": "/",
+  "short_name": "IBNA Admin",
+  "name": "IBNA — Painel Administrativo",
+  "description": "Painel administrativo da Igreja Batista Nova Aliança.",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "/?source=pwa",
+  "scope": "/",
+  "background_color": "#001848",
+  "theme_color": "#002366",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone"],
+  "orientation": "any",
+  "lang": "pt-BR",
+  "dir": "ltr",
+  "categories": ["business", "productivity"],
+  "prefer_related_applications": false
+}
