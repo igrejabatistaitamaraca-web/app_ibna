@@ -324,10 +324,36 @@ const MainDashboardApp: React.FC = () => {
         throw new Error('Sessão administrativa não encontrada. Faça login novamente.');
       }
 
+      const categoriaEntrada = String(data.categoria || '').trim().toLowerCase();
+
+      const categoriaMap: Record<string, string> = {
+        'culto': 'aviso',
+        'aviso': 'aviso',
+        'avisos': 'aviso',
+        'comemoração': 'comemoracao',
+        'comemoracao': 'comemoracao',
+        'mensagem': 'mensagem',
+        'mensagem bíblica': 'mensagem',
+        'mensagem biblica': 'mensagem',
+        'bíblia': 'biblia',
+        'biblia': 'biblia',
+        'versículo': 'biblia',
+        'versiculo': 'biblia',
+        'louvor': 'louvor',
+        'dica de louvor': 'louvor',
+        'dicas de louvor': 'louvor',
+        'oração': 'oracao',
+        'oracao': 'oracao',
+        'pedido de oração': 'oracao',
+        'pedido de oracao': 'oracao',
+      };
+
+      const categoriaDb = categoriaMap[categoriaEntrada] || 'aviso';
+
       const payload = {
         titulo: data.titulo?.trim() || 'Novo Aviso',
         mensagem: data.mensagem?.trim() || '',
-        categoria: data.categoria || 'aviso',
+        categoria: categoriaDb,
         destino: data.destino || 'home',
 
         // Estrutura REAL da tabela public.notificacoes
