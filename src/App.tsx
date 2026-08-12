@@ -327,11 +327,37 @@ const MainDashboardApp: React.FC = () => {
       const payload = {
         titulo: data.titulo?.trim() || 'Novo Aviso',
         mensagem: data.mensagem?.trim() || '',
-        categoria: data.categoria || 'Geral',
-        destino: data.destino || null,
-        audiencias: data.audiencias?.length ? data.audiencias : ['todos'],
-        data_agendamento: data.data_agendamento || new Date().toISOString(),
-        data_expiracao: data.data_expiracao || null,
+        categoria: data.categoria || 'aviso',
+        destino: data.destino || 'home',
+
+        // Compatibilidade com a estrutura atual
+        agendado_para:
+          (data as any).agendado_para ||
+          (data as any).data_agendamento ||
+          new Date().toISOString(),
+
+        expira_em:
+          (data as any).expira_em ||
+          (data as any).data_expiracao ||
+          null,
+
+        audiencias:
+          data.audiencias?.length
+            ? data.audiencias
+            : ['todos'],
+
+        // Mantemos também a coluna antiga/singular
+        audiencia:
+          data.audiencias?.[0] ||
+          (data as any).audiencia ||
+          'todos',
+
+        ministerio_id:
+          (data as any).ministerio_id || null,
+
+        usuario_id:
+          (data as any).usuario_id || null,
+
         notificar: data.notificar ?? true,
         ativo: data.ativo ?? true,
       };
