@@ -150,29 +150,46 @@ const MainDashboardApp: React.FC = () => {
 
   // --- MEMBER ACTIONS ---
   const handleAprovarMembro = async (id: string, numeroMembro?: string, membroDesde?: string) => {
+    // Format for Postgres 'date' type compatibility
+    const formattedDate =
+      membroDesde && /^\d{4}$/.test(membroDesde.trim())
+        ? `${membroDesde.trim()}-01-01`
+        : membroDesde || null;
+
     try {
       const client = getSupabaseClient();
-      // Try RPC first
-      const { error: rpcErr } = await client.rpc('aprovar_membro', {
-        p_profile_id: id,
-        p_numero_membro: numeroMembro,
-        p_membro_desde: membroDesde,
-      });
+      
+      // Payload containing strictly valid columns from public.profiles table
+      const updatePayload: Record<string, any> = {
+        membro_aprovado: true,
+        status_cadastro: 'aprovado',
+        updated_at: new Date().toISOString(),
+      };
+      if (numeroMembro) updatePayload.numero_membro = numeroMembro;
+      if (formattedDate) updatePayload.data_membro_desde = formattedDate;
 
-      if (rpcErr) {
-        // Fallback to direct update if RPC is missing in user's DB
-        await client
-          .from('profiles')
-          .update({
-            membro_aprovado: true,
-            status_cadastro: 'aprovado',
-            numero_membro: numeroMembro,
-            membro_desde: membroDesde,
-          })
-          .eq('id', id);
+      // 1. Direct update to profiles
+      const { error: directErr } = await client
+        .from('profiles')
+        .update(updatePayload)
+        .eq('id', id);
+
+      if (directErr) {
+        console.warn('Direct update to profiles:', directErr);
+      }
+
+      // 2. Also execute RPC if present
+      try {
+        await client.rpc('aprovar_membro', {
+          p_profile_id: id,
+          p_numero_membro: numeroMembro,
+          p_membro_desde: formattedDate,
+        });
+      } catch (rpcErr) {
+        console.info('RPC aprovar_membro note:', rpcErr);
       }
     } catch (err) {
-      console.warn('Aprovar membro update:', err);
+      console.warn('Error approving member:', err);
     }
 
     setProfiles((prev) =>
@@ -184,6 +201,7 @@ const MainDashboardApp: React.FC = () => {
               status_cadastro: 'aprovado',
               numero_membro: numeroMembro || p.numero_membro,
               membro_desde: membroDesde || p.membro_desde,
+              data_membro_desde: formattedDate,
             }
           : p
       )
@@ -193,19 +211,24 @@ const MainDashboardApp: React.FC = () => {
   const handleReprovarMembro = async (id: string) => {
     try {
       const client = getSupabaseClient();
-      const { error: rpcErr } = await client.rpc('reprovar_membro', { p_profile_id: id });
+      const { error: directErr } = await client
+        .from('profiles')
+        .update({
+          membro_aprovado: false,
+          status_cadastro: 'reprovado',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', id);
 
-      if (rpcErr) {
-        await client
-          .from('profiles')
-          .update({
-            membro_aprovado: false,
-            status_cadastro: 'reprovado',
-          })
-          .eq('id', id);
+      if (directErr) {
+        console.warn('Direct reprovar update:', directErr);
       }
+
+      try {
+        await client.rpc('reprovar_membro', { p_profile_id: id });
+      } catch (e) {}
     } catch (err) {
-      console.warn('Reprovar membro update:', err);
+      console.warn('Error reproving member:', err);
     }
 
     setProfiles((prev) =>
@@ -229,31 +252,43 @@ const MainDashboardApp: React.FC = () => {
     numeroMembro: string,
     membroDesde: string
   ) => {
+    const formattedDate =
+      membroDesde && /^\d{4}$/.test(membroDesde.trim())
+        ? `${membroDesde.trim()}-01-01`
+        : membroDesde || null;
+
     try {
       const client = getSupabaseClient();
-      const { error: rpcErr } = await client.rpc('atualizar_membro_admin', {
-        p_profile_id: id,
-        p_ativo: ativo,
-        p_eh_lider: ehLider,
-        p_cargo_lideranca: cargoLideranca,
-        p_numero_membro: numeroMembro,
-        p_membro_desde: membroDesde,
-      });
+      const updatePayload: Record<string, any> = {
+        ativo,
+        eh_lider: ehLider,
+        cargo_lideranca: cargoLideranca || null,
+        updated_at: new Date().toISOString(),
+      };
+      if (numeroMembro) updatePayload.numero_membro = numeroMembro;
+      if (formattedDate) updatePayload.data_membro_desde = formattedDate;
 
-      if (rpcErr) {
-        await client
-          .from('profiles')
-          .update({
-            ativo,
-            eh_lider: ehLider,
-            cargo_lideranca: cargoLideranca,
-            numero_membro: numeroMembro,
-            membro_desde: membroDesde,
-          })
-          .eq('id', id);
+      const { error: directErr } = await client
+        .from('profiles')
+        .update(updatePayload)
+        .eq('id', id);
+
+      if (directErr) {
+        console.warn('Direct update error:', directErr);
       }
+
+      try {
+        await client.rpc('atualizar_membro_admin', {
+          p_profile_id: id,
+          p_ativo: ativo,
+          p_eh_lider: ehLider,
+          p_cargo_lideranca: cargoLideranca,
+          p_numero_membro: numeroMembro,
+          p_membro_desde: formattedDate,
+        });
+      } catch (e) {}
     } catch (err) {
-      console.warn('Atualizar membro update:', err);
+      console.warn('Error updating member:', err);
     }
 
     setProfiles((prev) =>
@@ -266,6 +301,7 @@ const MainDashboardApp: React.FC = () => {
               cargo_lideranca: cargoLideranca,
               numero_membro: numeroMembro,
               membro_desde: membroDesde,
+              data_membro_desde: formattedDate,
             }
           : p
       )

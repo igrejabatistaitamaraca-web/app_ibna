@@ -85,10 +85,16 @@ export const MembrosView: React.FC<MembrosViewProps> = ({
     return matchesSearch && matchesStatus && matchesAtivo;
   });
 
+  const extractYear = (val?: string | null): string => {
+    if (!val) return '';
+    const match = val.match(/\d{4}/);
+    return match ? match[0] : val;
+  };
+
   const openDetail = (p: Profile) => {
     setSelectedProfile(p);
     setEditNumeroMembro(p.numero_membro || '');
-    setEditMembroDesde(p.membro_desde || p.data_membro_desde || '');
+    setEditMembroDesde(extractYear(p.membro_desde || p.data_membro_desde));
     setEditCargoLideranca(p.cargo_lideranca || '');
     setEditEhLider(p.eh_lider || false);
     setEditAtivo(p.ativo);
@@ -104,7 +110,7 @@ export const MembrosView: React.FC<MembrosViewProps> = ({
         await onAprovarMembro(
           p.id,
           editNumeroMembro || 'IBNA-' + Math.floor(1000 + Math.random() * 9000),
-          editMembroDesde || new Date().toISOString().split('T')[0]
+          editMembroDesde || new Date().getFullYear().toString()
         );
         setConfirmModal((prev) => ({ ...prev, isOpen: false }));
         setSelectedProfile(null);
@@ -442,12 +448,14 @@ export const MembrosView: React.FC<MembrosViewProps> = ({
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Membro Desde (Data)</label>
+                  <label className="block font-semibold text-slate-700 mb-1">Membro Desde (Ano)</label>
                   <input
-                    type="date"
+                    type="text"
+                    maxLength={4}
                     value={editMembroDesde}
-                    onChange={(e) => setEditMembroDesde(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-xs focus:border-amber-500 min-h-[44px]"
+                    onChange={(e) => setEditMembroDesde(e.target.value.replace(/\D/g, ''))}
+                    placeholder="Ex: 2020"
+                    className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-xs focus:border-amber-500 font-mono min-h-[44px]"
                   />
                 </div>
 
@@ -495,6 +503,12 @@ export const MembrosView: React.FC<MembrosViewProps> = ({
                   <span>Data de Nascimento:</span>
                   <span className="font-semibold text-slate-800">
                     {selectedProfile.data_nascimento || 'Não informada'}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Membro Desde (Ano):</span>
+                  <span className="font-semibold text-slate-800">
+                    {extractYear(selectedProfile.membro_desde || selectedProfile.data_membro_desde) || 'Não informado'}
                   </span>
                 </div>
                 <div className="flex justify-between">
