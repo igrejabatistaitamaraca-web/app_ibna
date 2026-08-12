@@ -1,0 +1,81 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --ibna-navy: #002366;
+    --ibna-navy-dark: #001848;
+    --ibna-gold: #D4AF37;
+    --ibna-gold-light: #fbf5e6;
+    --ibna-gold-hover: #b89628;
+    --ibna-bg: #f4f6f9;
+    --ibna-card: #ffffff;
+    --ibna-text: #1e293b;
+    --ibna-border: #e2e8f0;
+  }
+
+  body {
+    background-color: var(--ibna-bg);
+    color: var(--ibna-text);
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  }
+}
+
+/* Custom Sleek Interface Utility Classes */
+.bg-ibna-navy {
+  background-color: var(--ibna-navy);
+}
+
+.bg-ibna-navy-dark {
+  background-color: var(--ibna-navy-dark);
+}
+
+.text-ibna-navy {
+  color: var(--ibna-navy);
+}
+
+.border-ibna-navy {
+  border-color: var(--ibna-navy);
+}
+
+.bg-ibna-gold {
+  background-color: var(--ibna-gold);
+}
+
+.text-ibna-gold {
+  color: var(--ibna-gold);
+}
+
+.border-ibna-gold {
+  border-color: var(--ibna-gold);
+}
+
+.sleek-card {
+  background-color: #ffffff;
+  border: 1px solid var(--ibna-border);
+  border-radius: 0.75rem;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px 0 rgba(0, 0, 0, 0.03);
+  transition: all 0.2s ease-in-out;
+}
+
+.sleek-card:hover {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -1px rgba(0, 0, 0, 0.04);
+}
+
+/* Scrollbar customization */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(212, 175, 55, 0.4);
+  border-radius: 3px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(212, 175, 55, 0.7);
+}

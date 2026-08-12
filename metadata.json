@@ -1,0 +1,6 @@
+{
+  "name": "Painel Administrativo IBNA",
+  "description": "Painel web administrativo seguro para a Igreja Batista Nova Aliança (IBNA) gerenciar membros, avisos, notificações e conteúdos.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
