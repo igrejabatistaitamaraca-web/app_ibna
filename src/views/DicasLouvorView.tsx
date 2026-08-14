@@ -2,16 +2,18 @@ import React, { useState } from 'react';
 import { DicaLouvor, AudienciaType } from '../types/supabase';
 import { Badge } from '../components/ui/Badge';
 import { ConfirmModal } from '../components/ui/ConfirmModal';
+import { ContentNotificationButton } from '../components/ui/ContentNotificationButton';
 import { Music, Plus, Search, Edit2, Trash2, ExternalLink, FileText, Check, X } from 'lucide-react';
 
 interface DicasLouvorViewProps {
   items: DicaLouvor[];
   onSave: (data: Partial<DicaLouvor>) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
+  onEnqueueNotification: (contentType: 'louvor' | 'estudo' | 'mensagem' | 'momento', contentId: string) => Promise<void>;
   loading: boolean;
 }
 
-export const DicasLouvorView: React.FC<DicasLouvorViewProps> = ({ items, onSave, onDelete, loading }) => {
+export const DicasLouvorView: React.FC<DicasLouvorViewProps> = ({ items, onSave, onDelete, onEnqueueNotification, loading }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<DicaLouvor | null>(null);
@@ -154,6 +156,7 @@ export const DicasLouvorView: React.FC<DicasLouvorViewProps> = ({ items, onSave,
                 )}
 
                 <div className="flex items-center gap-2">
+                  <ContentNotificationButton contentType="louvor" contentId={item.id} contentTitle={item.titulo} onEnqueue={onEnqueueNotification} />
                   <button
                     onClick={() => openEditModal(item)}
                     className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100"

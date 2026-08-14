@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Momento, MomentoFoto, AudienciaType } from '../types/supabase';
 import { Badge } from '../components/ui/Badge';
 import { ConfirmModal } from '../components/ui/ConfirmModal';
+import { ContentNotificationButton } from '../components/ui/ContentNotificationButton';
 import { StorageUploader } from '../components/ui/StorageUploader';
 import { Image as ImageIcon, Plus, Search, Edit2, Trash2, Calendar, Upload, X } from 'lucide-react';
 
@@ -12,6 +13,7 @@ interface MomentosViewProps {
   onDeleteMomento: (id: string) => Promise<void>;
   onAddFoto: (momentoId: string, fotoUrl: string, legenda?: string) => Promise<void>;
   onDeleteFoto: (id: string) => Promise<void>;
+  onEnqueueNotification: (contentType: 'louvor' | 'estudo' | 'mensagem' | 'momento', contentId: string) => Promise<void>;
   loading: boolean;
 }
 
@@ -22,6 +24,7 @@ export const MomentosView: React.FC<MomentosViewProps> = ({
   onDeleteMomento,
   onAddFoto,
   onDeleteFoto,
+  onEnqueueNotification,
   loading,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -181,6 +184,7 @@ export const MomentosView: React.FC<MomentosViewProps> = ({
                   </button>
 
                   <div className="flex items-center gap-2">
+                    <ContentNotificationButton contentType="momento" contentId={item.id} contentTitle={item.titulo} onEnqueue={onEnqueueNotification} />
                     <button
                       onClick={() => openEditModal(item)}
                       className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100"

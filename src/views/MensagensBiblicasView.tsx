@@ -2,12 +2,14 @@ import React, { useState } from 'react';
 import { MensagemBiblica, AudienciaType } from '../types/supabase';
 import { Badge } from '../components/ui/Badge';
 import { ConfirmModal } from '../components/ui/ConfirmModal';
+import { ContentNotificationButton } from '../components/ui/ContentNotificationButton';
 import { Radio, Plus, Search, Edit2, Trash2, Video, Volume2, Calendar, X } from 'lucide-react';
 
 interface MensagensBiblicasViewProps {
   items: MensagemBiblica[];
   onSave: (data: Partial<MensagemBiblica>) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
+  onEnqueueNotification: (contentType: 'louvor' | 'estudo' | 'mensagem' | 'momento', contentId: string) => Promise<void>;
   loading: boolean;
 }
 
@@ -15,6 +17,7 @@ export const MensagensBiblicasView: React.FC<MensagensBiblicasViewProps> = ({
   items,
   onSave,
   onDelete,
+  onEnqueueNotification,
   loading,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -173,6 +176,7 @@ export const MensagensBiblicasView: React.FC<MensagensBiblicasViewProps> = ({
                 </div>
 
                 <div className="flex items-center gap-2">
+                  <ContentNotificationButton contentType="mensagem" contentId={item.id} contentTitle={item.titulo} onEnqueue={onEnqueueNotification} />
                   <button
                     onClick={() => openEditModal(item)}
                     className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100"

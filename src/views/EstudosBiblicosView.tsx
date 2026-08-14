@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { EstudoBiblico, AudienciaType } from '../types/supabase';
 import { Badge } from '../components/ui/Badge';
 import { ConfirmModal } from '../components/ui/ConfirmModal';
+import { ContentNotificationButton } from '../components/ui/ContentNotificationButton';
 import { StorageUploader } from '../components/ui/StorageUploader';
 import { BookOpen, Plus, Search, Edit2, Trash2, FileText, ExternalLink, X } from 'lucide-react';
 
@@ -9,6 +10,7 @@ interface EstudosBiblicosViewProps {
   items: EstudoBiblico[];
   onSave: (data: Partial<EstudoBiblico>) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
+  onEnqueueNotification: (contentType: 'louvor' | 'estudo' | 'mensagem' | 'momento', contentId: string) => Promise<void>;
   loading: boolean;
 }
 
@@ -16,6 +18,7 @@ export const EstudosBiblicosView: React.FC<EstudosBiblicosViewProps> = ({
   items,
   onSave,
   onDelete,
+  onEnqueueNotification,
   loading,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -179,6 +182,7 @@ export const EstudosBiblicosView: React.FC<EstudosBiblicosViewProps> = ({
                 )}
 
                 <div className="flex items-center gap-2">
+                  <ContentNotificationButton contentType="estudo" contentId={item.id} contentTitle={item.titulo} onEnqueue={onEnqueueNotification} />
                   <button
                     onClick={() => openEditModal(item)}
                     className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100"

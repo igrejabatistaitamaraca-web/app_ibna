@@ -568,6 +568,24 @@ const MainDashboardApp: React.FC = () => {
   );
   const handleDeleteLouvor = createDeleteHandler<DicaLouvor>('dicas_louvor', setLouvorItems);
 
+  const handleEnqueueContentNotification = async (
+    contentType: 'louvor' | 'estudo' | 'mensagem' | 'momento',
+    contentId: string,
+  ) => {
+    const client = getSupabaseClient();
+    const { data: { session }, error: sessionError } = await client.auth.getSession();
+
+    if (sessionError) throw sessionError;
+    if (!session?.user) throw new Error('Sessão administrativa não encontrada. Faça login novamente.');
+
+    const { error } = await client.rpc('enfileirar_notificacao_conteudo', {
+      p_content_type: contentType,
+      p_content_id: contentId,
+    });
+
+    if (error) throw new Error(`Não foi possível enfileirar a notificação: ${error.message}`);
+  };
+
   const handleSaveEstudo = createSaveHandler<EstudoBiblico>(
     'estudos_biblicos',
     setEstudosItems,
@@ -761,6 +779,7 @@ const MainDashboardApp: React.FC = () => {
               items={louvorItems}
               onSave={handleSaveLouvor}
               onDelete={handleDeleteLouvor}
+              onEnqueueNotification={handleEnqueueContentNotification}
               loading={dataLoading}
             />
           )}
@@ -770,6 +789,7 @@ const MainDashboardApp: React.FC = () => {
               items={estudosItems}
               onSave={handleSaveEstudo}
               onDelete={handleDeleteEstudo}
+              onEnqueueNotification={handleEnqueueContentNotification}
               loading={dataLoading}
             />
           )}
@@ -779,6 +799,7 @@ const MainDashboardApp: React.FC = () => {
               items={mensagensItems}
               onSave={handleSaveMensagem}
               onDelete={handleDeleteMensagem}
+              onEnqueueNotification={handleEnqueueContentNotification}
               loading={dataLoading}
             />
           )}
@@ -791,6 +812,7 @@ const MainDashboardApp: React.FC = () => {
               onDeleteMomento={handleDeleteMomento}
               onAddFoto={handleAddFotoMomento}
               onDeleteFoto={handleDeleteFotoMomento}
+              onEnqueueNotification={handleEnqueueContentNotification}
               loading={dataLoading}
             />
           )}
