@@ -73,10 +73,8 @@ export interface DicaLouvor {
   id: string;
   titulo: string;
   artista_autor?: string | null;
-  tom?: string | null;
   descricao?: string | null;
   link_audio_video?: string | null;
-  cifra_letra?: string | null;
   audiencias: AudienciaType[];
   ativo: boolean;
   ordem?: number;

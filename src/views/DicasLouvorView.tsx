@@ -18,12 +18,11 @@ export const DicasLouvorView: React.FC<DicasLouvorViewProps> = ({ items, onSave,
 
   const [titulo, setTitulo] = useState('');
   const [artistaAutor, setArtistaAutor] = useState('');
-  const [tom, setTom] = useState('');
   const [descricao, setDescricao] = useState('');
   const [linkAudioVideo, setLinkAudioVideo] = useState('');
-  const [cifraLetra, setCifraLetra] = useState('');
   const [audiencias, setAudiencias] = useState<AudienciaType[]>(['todos']);
   const [ativo, setAtivo] = useState(true);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
@@ -31,12 +30,11 @@ export const DicasLouvorView: React.FC<DicasLouvorViewProps> = ({ items, onSave,
     setEditingItem(null);
     setTitulo('');
     setArtistaAutor('');
-    setTom('G');
     setDescricao('');
     setLinkAudioVideo('');
-    setCifraLetra('');
     setAudiencias(['todos']);
     setAtivo(true);
+    setSaveError(null);
     setIsModalOpen(true);
   };
 
@@ -44,12 +42,11 @@ export const DicasLouvorView: React.FC<DicasLouvorViewProps> = ({ items, onSave,
     setEditingItem(item);
     setTitulo(item.titulo);
     setArtistaAutor(item.artista_autor || '');
-    setTom(item.tom || '');
     setDescricao(item.descricao || '');
     setLinkAudioVideo(item.link_audio_video || '');
-    setCifraLetra(item.cifra_letra || '');
     setAudiencias(item.audiencias || ['todos']);
     setAtivo(item.ativo);
+    setSaveError(null);
     setIsModalOpen(true);
   };
 
@@ -63,18 +60,21 @@ export const DicasLouvorView: React.FC<DicasLouvorViewProps> = ({ items, onSave,
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await onSave({
-      id: editingItem?.id,
-      titulo,
-      artista_autor: artistaAutor || null,
-      tom: tom || null,
-      descricao: descricao || null,
-      link_audio_video: linkAudioVideo || null,
-      cifra_letra: cifraLetra || null,
-      audiencias,
-      ativo,
-    });
-    setIsModalOpen(false);
+    setSaveError(null);
+    try {
+      await onSave({
+        id: editingItem?.id,
+        titulo,
+        artista_autor: artistaAutor || null,
+        descricao: descricao || null,
+        link_audio_video: linkAudioVideo || null,
+        audiencias,
+        ativo,
+      });
+      setIsModalOpen(false);
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : 'Não foi possível salvar a dica de louvor.');
+    }
   };
 
   const filtered = items.filter(
@@ -131,19 +131,11 @@ export const DicasLouvorView: React.FC<DicasLouvorViewProps> = ({ items, onSave,
                     <h3 className="font-bold text-slate-900 text-sm">{item.titulo}</h3>
                     <p className="text-xs font-medium text-amber-700">{item.artista_autor || 'Artista não informado'}</p>
                   </div>
-                  <div className="flex items-center gap-1.5">
-                    {item.tom && <Badge variant="purple">Tom: {item.tom}</Badge>}
-                    <Badge variant={item.ativo ? 'emerald' : 'slate'}>{item.ativo ? 'Ativo' : 'Inativo'}</Badge>
-                  </div>
+                  <Badge variant={item.ativo ? 'emerald' : 'slate'}>{item.ativo ? 'Ativo' : 'Inativo'}</Badge>
                 </div>
 
                 {item.descricao && <p className="text-xs text-slate-600">{item.descricao}</p>}
 
-                {item.cifra_letra && (
-                  <div className="rounded-xl bg-slate-900 p-3 text-slate-200 font-mono text-[11px] overflow-x-auto max-h-24">
-                    <pre className="whitespace-pre-wrap">{item.cifra_letra}</pre>
-                  </div>
-                )}
               </div>
 
               <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
@@ -203,26 +195,14 @@ export const DicasLouvorView: React.FC<DicasLouvorViewProps> = ({ items, onSave,
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Artista / Autor</label>
-                  <input
-                    type="text"
-                    value={artistaAutor}
-                    onChange={(e) => setArtistaAutor(e.target.value)}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs"
-                  />
-                </div>
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Tom da Música</label>
-                  <input
-                    type="text"
-                    value={tom}
-                    onChange={(e) => setTom(e.target.value)}
-                    placeholder="Ex: G, C, F#m"
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs"
-                  />
-                </div>
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Artista / Autor</label>
+                <input
+                  type="text"
+                  value={artistaAutor}
+                  onChange={(e) => setArtistaAutor(e.target.value)}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs"
+                />
               </div>
 
               <div>
@@ -243,16 +223,6 @@ export const DicasLouvorView: React.FC<DicasLouvorViewProps> = ({ items, onSave,
                   value={descricao}
                   onChange={(e) => setDescricao(e.target.value)}
                   className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs"
-                />
-              </div>
-
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Cifra / Letra</label>
-                <textarea
-                  rows={4}
-                  value={cifraLetra}
-                  onChange={(e) => setCifraLetra(e.target.value)}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs font-mono"
                 />
               </div>
 
@@ -286,6 +256,8 @@ export const DicasLouvorView: React.FC<DicasLouvorViewProps> = ({ items, onSave,
                 />
                 <span>Conteúdo Ativo</span>
               </label>
+
+              {saveError && <p role="alert" className="rounded-lg bg-rose-50 p-3 text-xs font-medium text-rose-700">{saveError}</p>}
 
               <div className="border-t border-slate-100 pt-4 flex justify-end gap-2">
                 <button
