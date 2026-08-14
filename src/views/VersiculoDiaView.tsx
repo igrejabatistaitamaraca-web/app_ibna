@@ -84,7 +84,7 @@ export const VersiculoDiaView: React.FC<VersiculoDiaViewProps> = ({
     setError(null);
     getSupabaseClient()
       .from('biblia_versiculos')
-      .select('id, livro, abreviacao, livro_abrev, capitulo, versiculo, texto, testamento, ordem_livro, ativo')
+      .select('id, livro, abreviacao, capitulo, versiculo, texto, testamento, ordem_livro, ativo')
       .eq('livro', book)
       .eq('capitulo', chapter)
       .order('versiculo', { ascending: true })
