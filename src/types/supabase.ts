@@ -32,6 +32,9 @@ export interface Notificacao {
   mensagem: string;
   categoria: string;
   destino?: string | null;
+  versiculo_id?: string | number | null;
+  referencia_biblica?: string | null;
+  explicacao?: string | null;
   audiencias: AudienciaType[];
   data_agendamento?: string;
   agendado_para?: string;

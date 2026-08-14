@@ -1,211 +1,203 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { BookMarked, CheckCircle2, Loader2, Send } from 'lucide-react';
 import { BibliaVersiculo } from '../types/supabase';
-import { Badge } from '../components/ui/Badge';
-import { BookMarked, Search, Send, Calendar, Sparkles, CheckCircle2 } from 'lucide-react';
+import { getSupabaseClient } from '../lib/supabase';
 
 interface VersiculoDiaViewProps {
-  versiculos: BibliaVersiculo[];
-  onCreateVersiculoNotification: (versiculo: BibliaVersiculo) => Promise<void>;
+  onCreateVersiculoNotification: (
+    passagem: BibliaVersiculo[],
+    explicacao: string,
+    agendadoPara?: string,
+    expiraEm?: string
+  ) => Promise<void>;
   loading: boolean;
 }
 
+const BIBLE_BOOKS = [
+  'Gênesis','Êxodo','Levítico','Números','Deuteronômio','Josué','Juízes','Rute',
+  '1 Samuel','2 Samuel','1 Reis','2 Reis','1 Crônicas','2 Crônicas','Esdras','Neemias',
+  'Ester','Jó','Salmos','Provérbios','Eclesiastes','Cânticos','Isaías','Jeremias',
+  'Lamentações','Ezequiel','Daniel','Oséias','Joel','Amós','Obadias','Jonas','Miquéias',
+  'Naum','Habacuque','Sofonias','Ageu','Zacarias','Malaquias','Mateus','Marcos','Lucas',
+  'João','Atos','Romanos','1 Coríntios','2 Coríntios','Gálatas','Efésios','Filipenses',
+  'Colossenses','1 Tessalonicenses','2 Tessalonicenses','1 Timóteo','2 Timóteo','Tito',
+  'Filemom','Hebreus','Tiago','1 Pedro','2 Pedro','1 João','2 João','3 João','Judas','Apocalipse'
+];
+
+function toLocalInput(date: Date) {
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
 export const VersiculoDiaView: React.FC<VersiculoDiaViewProps> = ({
-  versiculos,
   onCreateVersiculoNotification,
   loading,
 }) => {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedBook, setSelectedBook] = useState<string>('todos');
-  const [notifiedId, setNotifiedId] = useState<string | null>(null);
+  const [book, setBook] = useState('João');
+  const [chapter, setChapter] = useState(3);
+  const [chapterCount, setChapterCount] = useState(0);
+  const [chapterVerses, setChapterVerses] = useState<BibliaVersiculo[]>([]);
+  const [startVerseId, setStartVerseId] = useState('');
+  const [endVerseId, setEndVerseId] = useState('');
+  const [explanation, setExplanation] = useState('');
+  const [scheduledAt, setScheduledAt] = useState(toLocalInput(new Date()));
+  const [expiresAt, setExpiresAt] = useState('');
+  const [querying, setQuerying] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Calculated Versículo do Dia (Deterministic calculation based on day of year)
-  const today = new Date();
-  const startOfYear = new Date(today.getFullYear(), 0, 0);
-  const diff = today.getTime() - startOfYear.getTime();
-  const dayOfYear = Math.floor(diff / (1000 * 60 * 60 * 24));
+  const selectedVerses = useMemo(() => {
+    const startIndex = chapterVerses.findIndex((item) => String(item.id) === startVerseId);
+    const endIndex = chapterVerses.findIndex((item) => String(item.id) === endVerseId);
+    if (startIndex < 0 || endIndex < startIndex) return [];
+    return chapterVerses.slice(startIndex, endIndex + 1);
+  }, [chapterVerses, startVerseId, endVerseId]);
 
-  const totalVerses = versiculos.length > 0 ? versiculos.length : 1;
-  const todayIndex = dayOfYear % totalVerses;
-  const tomorrowIndex = (dayOfYear + 1) % totalVerses;
+  useEffect(() => {
+    let active = true;
+    setQuerying(true);
+    setError(null);
+    getSupabaseClient()
+      .from('biblia_versiculos')
+      .select('capitulo')
+      .eq('livro', book)
+      .order('capitulo', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+      .then(({ data, error: queryError }) => {
+        if (!active) return;
+        if (queryError) throw queryError;
+        const total = Number(data?.capitulo || 0);
+        setChapterCount(total);
+        setChapter((current) => Math.min(Math.max(current, 1), Math.max(total, 1)));
+      })
+      .catch(() => active && setError(`Não foi possível consultar os capítulos de ${book}.`))
+      .finally(() => active && setQuerying(false));
+    return () => { active = false; };
+  }, [book]);
 
-  const todayVersiculo = versiculos[todayIndex] || {
-    id: 'bv1',
-    livro: 'João',
-    livro_abrev: 'Jo',
-    capitulo: 3,
-    versiculo: 16,
-    texto: 'Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito, para que todo aquele que nele crê não pereça, mas tenha a vida eterna.',
-    testamento: 'NT',
-  };
+  useEffect(() => {
+    if (!book || !chapter) return;
+    let active = true;
+    setQuerying(true);
+    setError(null);
+    getSupabaseClient()
+      .from('biblia_versiculos')
+      .select('id, livro, abreviacao, livro_abrev, capitulo, versiculo, texto, testamento, ordem_livro, ativo')
+      .eq('livro', book)
+      .eq('capitulo', chapter)
+      .order('versiculo', { ascending: true })
+      .then(({ data, error: queryError }) => {
+        if (!active) return;
+        if (queryError) throw queryError;
+        const items = (data || []) as BibliaVersiculo[];
+        setChapterVerses(items);
+        const firstId = items[0] ? String(items[0].id) : '';
+        setStartVerseId(firstId);
+        setEndVerseId(firstId);
+      })
+      .catch(() => {
+        if (!active) return;
+        setChapterVerses([]);
+        setStartVerseId('');
+        setEndVerseId('');
+        setError('Não foi possível carregar os versículos deste capítulo.');
+      })
+      .finally(() => active && setQuerying(false));
+    return () => { active = false; };
+  }, [book, chapter]);
 
-  const tomorrowVersiculo = versiculos[tomorrowIndex] || todayVersiculo;
-
-  // Extract unique books
-  const uniqueBooks = Array.from(new Set(versiculos.map((v) => v.livro)));
-
-  const filteredVerses = versiculos.filter((v) => {
-    const matchesSearch =
-      v.texto.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      v.livro.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      `${v.capitulo}:${v.versiculo}`.includes(searchTerm);
-
-    const matchesBook = selectedBook === 'todos' ? true : v.livro === selectedBook;
-
-    return matchesSearch && matchesBook;
-  });
-
-  const handlePublishVerseNotification = async (v: BibliaVersiculo) => {
-    await onCreateVersiculoNotification(v);
-    setNotifiedId(v.id);
-    setTimeout(() => setNotifiedId(null), 4000);
+  const publish = async () => {
+    if (!selectedVerses.length) {
+      setError('Escolha um versículo antes de enviar.');
+      return;
+    }
+    const scheduleIso = scheduledAt ? new Date(scheduledAt).toISOString() : new Date().toISOString();
+    const expirationIso = expiresAt ? new Date(expiresAt).toISOString() : undefined;
+    if (expirationIso && new Date(expirationIso) <= new Date(scheduleIso)) {
+      setError('A expiração precisa ser posterior ao horário de publicação.');
+      return;
+    }
+    setSubmitting(true);
+    setSuccess(false);
+    setError(null);
+    try {
+      await onCreateVersiculoNotification(selectedVerses, explanation, scheduleIso, expirationIso);
+      setSuccess(true);
+      setTimeout(() => setSuccess(false), 5000);
+    } catch (publishError) {
+      setError(publishError instanceof Error ? publishError.message : 'Não foi possível enviar a Palavra do Dia.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
-    <div className="space-y-6">
-      {/* Title */}
-      <div>
-        <h2 className="text-xl font-bold text-slate-900">Versículo do Dia & Busca Bíblica</h2>
-        <p className="text-xs text-slate-500">
-          Acompanhe o cálculo do versículo diário e publique notificações bíblicas manuais quando necessário.
-        </p>
-      </div>
+    <div className="mx-auto max-w-5xl space-y-5 pb-24">
+      <header>
+        <h2 className="text-xl font-bold text-slate-900">Palavra do Dia</h2>
+        <p className="text-sm text-slate-500">Escolha a passagem, escreva uma reflexão e programe o envio ao aplicativo.</p>
+      </header>
 
-      {/* Control Panel: Today & Tomorrow calculated Verses */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Today's Calculated Verse */}
-        <div className="rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6 text-white shadow-lg border border-slate-800 space-y-4">
-          <div className="flex items-center justify-between">
-            <span className="flex items-center gap-1.5 rounded-full bg-amber-500/20 px-3 py-1 text-xs font-bold text-amber-400 border border-amber-500/30">
-              <Sparkles className="h-3.5 w-3.5" />
-              Versículo Calculado para HOJE ({today.toLocaleDateString('pt-BR')})
-            </span>
-            <Badge variant="purple">{todayVersiculo.testamento}</Badge>
-          </div>
-
-          <blockquote className="font-serif italic text-base leading-relaxed text-amber-100">
-            "{todayVersiculo.texto}"
-          </blockquote>
-
-          <div className="flex items-center justify-between border-t border-slate-700/80 pt-3">
-            <span className="font-bold text-amber-400 text-sm">
-              {todayVersiculo.livro} {todayVersiculo.capitulo}:{todayVersiculo.versiculo}
-            </span>
-
-            <button
-              onClick={() => handlePublishVerseNotification(todayVersiculo)}
-              disabled={notifiedId === todayVersiculo.id}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-amber-500 px-4 py-2 text-xs font-bold text-slate-950 hover:bg-amber-400 shadow-md transition-all cursor-pointer"
-            >
-              {notifiedId === todayVersiculo.id ? (
-                <>
-                  <CheckCircle2 className="h-4 w-4 text-slate-950" />
-                  <span>Notificação Criada!</span>
-                </>
-              ) : (
-                <>
-                  <Send className="h-3.5 w-3.5" />
-                  <span>Publicar Notificação Pública</span>
-                </>
-              )}
-            </button>
-          </div>
+      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+        <div className="mb-5 flex items-center gap-2 text-sm font-bold text-slate-900">
+          <BookMarked className="h-5 w-5 text-amber-600" /> Escolher passagem bíblica
+        </div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <label className="space-y-1 text-xs font-semibold text-slate-600">Livro
+            <select value={book} onChange={(event) => { setBook(event.target.value); setChapter(1); }} className="w-full rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm text-slate-900">
+              {BIBLE_BOOKS.map((item) => <option key={item} value={item}>{item}</option>)}
+            </select>
+          </label>
+          <label className="space-y-1 text-xs font-semibold text-slate-600">Capítulo
+            <select value={chapter} onChange={(event) => setChapter(Number(event.target.value))} disabled={!chapterCount} className="w-full rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm text-slate-900 disabled:opacity-50">
+              {Array.from({ length: chapterCount }, (_, index) => index + 1).map((item) => <option key={item} value={item}>{item}</option>)}
+            </select>
+          </label>
+          <label className="space-y-1 text-xs font-semibold text-slate-600">Versículo inicial
+            <select value={startVerseId} onChange={(event) => { const id = event.target.value; setStartVerseId(id); const start = chapterVerses.findIndex((item) => String(item.id) === id); const end = chapterVerses.findIndex((item) => String(item.id) === endVerseId); if (end < start) setEndVerseId(id); }} disabled={!chapterVerses.length} className="w-full rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm text-slate-900 disabled:opacity-50">
+              {chapterVerses.map((item) => <option key={String(item.id)} value={String(item.id)}>{item.versiculo}</option>)}
+            </select>
+          </label>
+          <label className="space-y-1 text-xs font-semibold text-slate-600">Versículo final
+            <select value={endVerseId} onChange={(event) => setEndVerseId(event.target.value)} disabled={!chapterVerses.length} className="w-full rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm text-slate-900 disabled:opacity-50">
+              {chapterVerses.filter((item) => {
+                const start = chapterVerses.findIndex((verse) => String(verse.id) === startVerseId);
+                return chapterVerses.indexOf(item) >= Math.max(start, 0);
+              }).map((item) => <option key={String(item.id)} value={String(item.id)}>{item.versiculo}</option>)}
+            </select>
+          </label>
         </div>
 
-        {/* Tomorrow's Verse */}
-        <div className="rounded-2xl bg-white p-6 shadow-xs border border-slate-200 space-y-4 flex flex-col justify-between">
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700 border border-slate-200">
-                <Calendar className="h-3.5 w-3.5 text-slate-500" />
-                Próximo Versículo (AMANHÃ)
-              </span>
-              <Badge variant="slate">{tomorrowVersiculo.testamento}</Badge>
-            </div>
-
-            <blockquote className="font-serif italic text-sm text-slate-700 leading-relaxed">
-              "{tomorrowVersiculo.texto}"
-            </blockquote>
-          </div>
-
-          <div className="flex items-center justify-between border-t border-slate-100 pt-3">
-            <span className="font-bold text-slate-900 text-sm">
-              {tomorrowVersiculo.livro} {tomorrowVersiculo.capitulo}:{tomorrowVersiculo.versiculo}
-            </span>
-            <span className="text-[11px] text-slate-400 font-medium">Auto-agendado no App</span>
-          </div>
+        <div className="mt-5 min-h-32 rounded-2xl bg-[#001848] p-5 text-white">
+          {querying ? <span className="flex items-center gap-2 text-sm text-slate-300"><Loader2 className="h-4 w-4 animate-spin" /> Consultando Bíblia…</span> : selectedVerses.length ? <>
+            <div className="space-y-2 font-serif text-base italic leading-relaxed text-amber-50">{selectedVerses.map((verse) => <p key={String(verse.id)}><strong className="mr-1 text-amber-400">{verse.versiculo}</strong>{verse.texto}</p>)}</div>
+            <p className="mt-3 text-right text-sm font-bold text-amber-400">{selectedVerses[0].livro} {selectedVerses[0].capitulo}:{selectedVerses[0].versiculo}{selectedVerses.length > 1 ? `–${selectedVerses[selectedVerses.length - 1].versiculo}` : ''}</p>
+          </> : <p className="text-sm text-slate-300">Nenhum versículo encontrado.</p>}
         </div>
-      </div>
+      </section>
 
-      {/* Bible Verses Search & Explorer */}
-      <div className="rounded-2xl bg-white p-6 shadow-xs border border-slate-200 space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-            <BookMarked className="h-5 w-5 text-amber-600" />
-            <span>Consultar Passagens Bíblicas Registradas (`public.biblia_versiculos`)</span>
-          </h3>
+      <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+        <label className="block space-y-1 text-xs font-semibold text-slate-600">Explicação / reflexão
+          <textarea value={explanation} onChange={(event) => setExplanation(event.target.value)} rows={6} maxLength={4000} placeholder="Escreva uma aplicação breve e pastoral para acompanhar o versículo…" className="w-full resize-y rounded-xl border border-slate-300 px-3 py-3 text-sm font-normal text-slate-900" />
+          <span className="block text-right text-[11px] font-normal text-slate-400">{explanation.length}/4000</span>
+        </label>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <label className="space-y-1 text-xs font-semibold text-slate-600">Publicar em
+            <input type="datetime-local" value={scheduledAt} onChange={(event) => setScheduledAt(event.target.value)} className="w-full rounded-xl border border-slate-300 px-3 py-3 text-sm text-slate-900" />
+          </label>
+          <label className="space-y-1 text-xs font-semibold text-slate-600">Expirar em (opcional)
+            <input type="datetime-local" value={expiresAt} onChange={(event) => setExpiresAt(event.target.value)} className="w-full rounded-xl border border-slate-300 px-3 py-3 text-sm text-slate-900" />
+          </label>
         </div>
-
-        {/* Search Inputs */}
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Buscar por texto bíblico ou número..."
-              className="w-full rounded-xl border border-slate-200 pl-9 pr-3 py-2 text-xs focus:border-amber-500"
-            />
-          </div>
-
-          <select
-            value={selectedBook}
-            onChange={(e) => setSelectedBook(e.target.value)}
-            className="rounded-xl border border-slate-200 px-3 py-2 text-xs text-slate-800 focus:border-amber-500"
-          >
-            <option value="todos">Todos os Livros</option>
-            {uniqueBooks.map((b) => (
-              <option key={b} value={b}>
-                {b}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* Verses Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {filteredVerses.length === 0 ? (
-            <div className="col-span-full p-8 text-center text-slate-500 text-xs">
-              Nenhum versículo encontrado na busca.
-            </div>
-          ) : (
-            filteredVerses.map((v) => (
-              <div
-                key={v.id}
-                className="rounded-xl bg-slate-50 p-4 border border-slate-200 space-y-2 hover:bg-slate-100/80 transition-colors"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-amber-800 text-xs">
-                    {v.livro} {v.capitulo}:{v.versiculo}
-                  </span>
-                  <Badge variant="purple">{v.testamento}</Badge>
-                </div>
-
-                <p className="font-serif text-xs text-slate-800 italic leading-relaxed">"{v.texto}"</p>
-
-                <div className="pt-2 flex justify-end">
-                  <button
-                    onClick={() => handlePublishVerseNotification(v)}
-                    className="text-[11px] font-bold text-amber-700 hover:text-amber-800 underline flex items-center gap-1"
-                  >
-                    <Send className="h-3 w-3" /> Gerar Aviso com este Versículo
-                  </button>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      </div>
+        {error && <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm font-medium text-red-700">{error}</p>}
+        {success && <p className="flex items-center gap-2 rounded-xl bg-emerald-50 p-3 text-sm font-bold text-emerald-700"><CheckCircle2 className="h-4 w-4" /> Palavra do Dia enviada com sucesso.</p>}
+        <button type="button" onClick={publish} disabled={!selectedVerses.length || submitting || loading} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-amber-500 px-5 py-3 text-sm font-bold text-slate-950 transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-50">
+          {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+          {submitting ? 'Enviando…' : 'Enviar Palavra do Dia'}
+        </button>
+      </section>
     </div>
   );
 };

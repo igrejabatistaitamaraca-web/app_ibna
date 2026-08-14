@@ -32,7 +32,6 @@ import {
   normalizeMomentoFoto,
   normalizeCalendario,
   normalizeSobre,
-  normalizeVersiculo,
 } from './lib/dataUtils';
 
 // Layout Components
@@ -76,7 +75,6 @@ const MainDashboardApp: React.FC = () => {
   const [momentoFotos, setMomentoFotos] = useState<MomentoFoto[]>([]);
   const [calendarioItems, setCalendarioItems] = useState<EventoCalendario[]>([]);
   const [sobreItems, setSobreItems] = useState<SobreIgreja[]>([]);
-  const [versiculos, setVersiculos] = useState<BibliaVersiculo[]>([]);
 
   // Fetch real data from Supabase DB
   const loadAllData = async () => {
@@ -96,7 +94,6 @@ const MainDashboardApp: React.FC = () => {
         resMomentoFotos,
         resCalendario,
         resSobre,
-        resVersiculos,
       ] = await Promise.all([
         client.from('profiles').select('*'),
         client.from('notificacoes').select('*'),
@@ -108,7 +105,6 @@ const MainDashboardApp: React.FC = () => {
         client.from('momento_fotos').select('*'),
         client.from('calendario').select('*'),
         client.from('sobre').select('*'),
-        client.from('biblia_versiculos').select('*').limit(150),
       ]);
 
       if (resProfiles.data) setProfiles(resProfiles.data.map(normalizeProfile));
@@ -121,7 +117,6 @@ const MainDashboardApp: React.FC = () => {
       if (resMomentoFotos.data) setMomentoFotos(resMomentoFotos.data.map(normalizeMomentoFoto));
       if (resCalendario.data) setCalendarioItems(resCalendario.data.map(normalizeCalendario));
       if (resSobre.data) setSobreItems(resSobre.data.map(normalizeSobre));
-      if (resVersiculos.data) setVersiculos(resVersiculos.data.map(normalizeVersiculo));
     } catch (err) {
       console.warn('Erro ao carregar dados do Supabase:', err);
     } finally {
@@ -337,8 +332,8 @@ const MainDashboardApp: React.FC = () => {
         'mensagem biblica': 'mensagem',
         'bíblia': 'biblia',
         'biblia': 'biblia',
-        'versículo': 'biblia',
-        'versiculo': 'biblia',
+        'versículo': 'versiculo',
+        'versiculo': 'versiculo',
         'louvor': 'louvor',
         'dica de louvor': 'louvor',
         'dicas de louvor': 'louvor',
@@ -355,6 +350,9 @@ const MainDashboardApp: React.FC = () => {
         mensagem: data.mensagem?.trim() || '',
         categoria: categoriaDb,
         destino: data.destino || 'home',
+        versiculo_id: data.versiculo_id ?? null,
+        referencia_biblica: data.referencia_biblica?.trim() || null,
+        explicacao: data.explicacao?.trim() || null,
 
         // Estrutura REAL da tabela public.notificacoes
         agendado_para:
@@ -655,12 +653,31 @@ const MainDashboardApp: React.FC = () => {
   );
   const handleDeleteSobre = createDeleteHandler<SobreIgreja>('sobre', setSobreItems);
 
-  const handleCreateVersiculoNotification = async (v: BibliaVersiculo) => {
+  const handleCreateVersiculoNotification = async (
+    passagem: BibliaVersiculo[],
+    explicacao: string,
+    agendadoPara?: string,
+    expiraEm?: string
+  ) => {
+    if (!passagem.length) throw new Error('Selecione pelo menos um versículo.');
+    const primeiro = passagem[0];
+    const ultimo = passagem[passagem.length - 1];
+    const referencia = passagem.length === 1
+      ? `${primeiro.livro} ${primeiro.capitulo}:${primeiro.versiculo}`
+      : `${primeiro.livro} ${primeiro.capitulo}:${primeiro.versiculo}–${ultimo.versiculo}`;
+    const texto = passagem.length === 1
+      ? primeiro.texto.trim()
+      : passagem.map((v) => `${v.versiculo}. ${v.texto.trim()}`).join('\n');
     await handleSaveNotificacao({
-      titulo: `Versículo do Dia: ${v.livro} ${v.capitulo}:${v.versiculo}`,
-      mensagem: `"${v.texto}"`,
-      categoria: 'Geral',
+      titulo: 'Palavra do Dia',
+      mensagem: texto,
+      categoria: 'versiculo',
       destino: '/versiculo-do-dia',
+      versiculo_id: primeiro.id,
+      referencia_biblica: referencia,
+      explicacao: explicacao.trim() || null,
+      agendado_para: agendadoPara || new Date().toISOString(),
+      expira_em: expiraEm || null,
       audiencias: ['todos'],
       notificar: true,
       ativo: true,
@@ -798,7 +815,6 @@ const MainDashboardApp: React.FC = () => {
 
           {currentTab === 'versiculo' && (
             <VersiculoDiaView
-              versiculos={versiculos}
               onCreateVersiculoNotification={handleCreateVersiculoNotification}
               loading={dataLoading}
             />

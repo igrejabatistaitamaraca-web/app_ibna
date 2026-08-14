@@ -17,12 +17,13 @@
       "purpose": "any maskable"
     }
   ],
-  "start_url": "/?source=pwa",
+  "start_url": "/",
   "scope": "/",
   "background_color": "#001848",
   "theme_color": "#002366",
   "display": "standalone",
-  "display_override": ["window-controls-overlay", "standalone"],
+  "display_override": ["standalone", "fullscreen"],
+  "launch_handler": { "client_mode": "navigate-existing" },
   "orientation": "any",
   "lang": "pt-BR",
   "dir": "ltr",
