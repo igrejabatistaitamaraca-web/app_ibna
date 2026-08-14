@@ -34,77 +34,6 @@ O painel segue **100% das diretrizes de segurança** exigidas para o ecossistema
 
 ---
 
-## 🔑 Como Criar o Primeiro Usuário Administrador (Passo a Passo)
-
-Como a política de RLS exige `is_admin = true` e `ativo = true` para acessar o painel, siga os passos abaixo para cadastrar e promover o primeiro administrador no Supabase:
-
-### Passo 1: Criar o Usuário no Supabase Auth
-1. Acesse o **Supabase Dashboard** do seu projeto (`vnydavylxtbzcapgvyap`).
-2. Vá em **Authentication** -> **Users** e clique em **Add User** -> **Create User**.
-3. Insira o e-mail (ex: `admin@ibna.org.br`) e defina uma senha forte.
-4. Confirme a criação. O Supabase gerará um UUID para este usuário.
-
-### Passo 2: Executar o Script SQL de Promoção a Admin
-1. No Supabase Dashboard, acesse **SQL Editor** -> **New Query**.
-2. Execute o seguinte script SQL substituindo o e-mail pelo e-mail criado:
-
-```sql
--- Garantir que a migration da estrutura e RLS foi executada primeiro
--- (Arquivo: /supabase/migrations/ibna_schema_and_security.sql)
-
--- Promover o usuário criado a Administrador Ativo e Membro Aprovado
-UPDATE public.profiles
-SET 
-  is_admin = true,
-  ativo = true,
-  membro_aprovado = true,
-  status_cadastro = 'aprovado',
-  nome_completo = 'Administrador IBNA',
-  cargo_lideranca = 'Pastor / Administrador'
-WHERE email = 'admin@ibna.org.br';
-
--- Caso o registro de perfil ainda não tenha sido inserido pelo trigger de auth:
-INSERT INTO public.profiles (
-  id,
-  email,
-  nome_completo,
-  membro_aprovado,
-  is_admin,
-  ativo,
-  status_cadastro,
-  cargo_lideranca
-)
-SELECT 
-  id,
-  email,
-  'Administrador IBNA',
-  true,
-  true,
-  true,
-  'aprovado',
-  'Pastor / Administrador'
-FROM auth.users
-WHERE email = 'adm@ibna.com.br'
-ON CONFLICT (id) DO UPDATE SET
-  is_admin = true,
-  ativo = true,
-  membro_aprovado = true,
-  status_cadastro = 'aprovado';
-```
-
----
-
-## ⚙️ Variáveis de Ambiente e Configuração
-
-Crie um arquivo `.env` na raiz do projeto com as credenciais publishable do seu projeto Supabase:
-
-```env
-# URL do seu projeto Supabase IBNA
-VITE_SUPABASE_URL="https://vnydavylxtbzcapgvyap.supabase.co"
-
-# Chave pública anon (Publishable Key)
-VITE_SUPABASE_ANON_KEY="SUA_CHAVE_ANON_AQUI"
-```
 
 > **Nota:** Caso o arquivo `.env` não seja configurado, o painel disponibiliza um botão **"Modo Demonstração / Teste Rápido"** na tela de login com dados em memória, e um modal de configuração em tempo de execução para inserir a URL e Anon Key dinamicamente.
 
@@ -131,5 +60,3 @@ Para gerar o bundle de produção estático otimizado:
 ```bash
 npm run build
 ```
-
-Os arquivos compilados estarão no diretório `dist/` e podem ser hospedados no Cloud Run, Vercel, Netlify, Cloudflare Pages ou em qualquer servidor de hospedagem estática.
