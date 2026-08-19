@@ -45,8 +45,11 @@ export const MomentosView: React.FC<MomentosViewProps> = ({
   const [ativo, setAtivo] = useState(true);
 
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const openCreateModal = () => {
+    setSaveError(null);
     setEditingItem(null);
     setTitulo('');
     setDescricao('');
@@ -58,6 +61,7 @@ export const MomentosView: React.FC<MomentosViewProps> = ({
   };
 
   const openEditModal = (item: Momento) => {
+    setSaveError(null);
     setEditingItem(item);
     setTitulo(item.titulo);
     setDescricao(item.descricao || '');
@@ -78,16 +82,24 @@ export const MomentosView: React.FC<MomentosViewProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await onSaveMomento({
-      id: editingItem?.id,
-      titulo,
-      descricao: descricao || null,
-      capa_url: capaUrl || null,
-      data_evento: dataEvento || null,
-      audiencias,
-      ativo,
-    });
-    setIsModalOpen(false);
+    setIsSaving(true);
+    setSaveError(null);
+    try {
+      await onSaveMomento({
+        id: editingItem?.id,
+        titulo,
+        descricao: descricao || null,
+        capa_url: capaUrl || null,
+        data_evento: dataEvento || null,
+        audiencias,
+        ativo,
+      });
+      setIsModalOpen(false);
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : 'Não foi possível salvar o momento.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleAddFotoSubmit = async (e: React.FormEvent) => {
@@ -371,6 +383,12 @@ export const MomentosView: React.FC<MomentosViewProps> = ({
                 <span>Álbum Ativo</span>
               </label>
 
+              {saveError && (
+                <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-rose-700">
+                  {saveError}
+                </p>
+              )}
+
               <div className="border-t border-slate-100 pt-4 flex justify-end gap-2">
                 <button
                   type="button"
@@ -381,9 +399,10 @@ export const MomentosView: React.FC<MomentosViewProps> = ({
                 </button>
                 <button
                   type="submit"
+                  disabled={isSaving}
                   className="rounded-lg bg-slate-900 px-5 py-2 text-xs font-semibold text-white"
                 >
-                  Salvar
+                  {isSaving ? 'Salvando...' : 'Salvar'}
                 </button>
               </div>
             </form>

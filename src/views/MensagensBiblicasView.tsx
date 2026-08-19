@@ -35,8 +35,11 @@ export const MensagensBiblicasView: React.FC<MensagensBiblicasViewProps> = ({
   const [ativo, setAtivo] = useState(true);
 
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const openCreateModal = () => {
+    setSaveError(null);
     setEditingItem(null);
     setTitulo('');
     setPregador('Pr. Carlos Eduardo Santos');
@@ -51,6 +54,7 @@ export const MensagensBiblicasView: React.FC<MensagensBiblicasViewProps> = ({
   };
 
   const openEditModal = (item: MensagemBiblica) => {
+    setSaveError(null);
     setEditingItem(item);
     setTitulo(item.titulo);
     setPregador(item.pregador || '');
@@ -74,19 +78,27 @@ export const MensagensBiblicasView: React.FC<MensagensBiblicasViewProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await onSave({
-      id: editingItem?.id,
-      titulo,
-      pregador: pregador || null,
-      texto_chave: textoChave || null,
-      resumo: resumo || null,
-      video_url: videoUrl || null,
-      audio_url: audioUrl || null,
-      data_pregada: dataPregada || null,
-      audiencias,
-      ativo,
-    });
-    setIsModalOpen(false);
+    setIsSaving(true);
+    setSaveError(null);
+    try {
+      await onSave({
+        id: editingItem?.id,
+        titulo,
+        pregador: pregador || null,
+        texto_chave: textoChave || null,
+        resumo: resumo || null,
+        video_url: videoUrl || null,
+        audio_url: audioUrl || null,
+        data_pregada: dataPregada || null,
+        audiencias,
+        ativo,
+      });
+      setIsModalOpen(false);
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : 'Não foi possível salvar a mensagem.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const filtered = items.filter(
@@ -302,6 +314,12 @@ export const MensagensBiblicasView: React.FC<MensagensBiblicasViewProps> = ({
                 <span>Mensagem Ativa</span>
               </label>
 
+              {saveError && (
+                <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-rose-700">
+                  {saveError}
+                </p>
+              )}
+
               <div className="border-t border-slate-100 pt-4 flex justify-end gap-2">
                 <button
                   type="button"
@@ -312,9 +330,10 @@ export const MensagensBiblicasView: React.FC<MensagensBiblicasViewProps> = ({
                 </button>
                 <button
                   type="submit"
+                  disabled={isSaving}
                   className="rounded-lg bg-slate-900 px-5 py-2 text-xs font-semibold text-white"
                 >
-                  Salvar
+                  {isSaving ? 'Salvando...' : 'Salvar'}
                 </button>
               </div>
             </form>

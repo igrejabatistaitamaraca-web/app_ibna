@@ -36,8 +36,11 @@ export const EstudosBiblicosView: React.FC<EstudosBiblicosViewProps> = ({
   const [ativo, setAtivo] = useState(true);
 
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const openCreateModal = () => {
+    setSaveError(null);
     setEditingItem(null);
     setTitulo('');
     setSubtitulo('');
@@ -52,6 +55,7 @@ export const EstudosBiblicosView: React.FC<EstudosBiblicosViewProps> = ({
   };
 
   const openEditModal = (item: EstudoBiblico) => {
+    setSaveError(null);
     setEditingItem(item);
     setTitulo(item.titulo);
     setSubtitulo(item.subtitulo || '');
@@ -75,19 +79,27 @@ export const EstudosBiblicosView: React.FC<EstudosBiblicosViewProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await onSave({
-      id: editingItem?.id,
-      titulo,
-      subtitulo: subtitulo || null,
-      autor: autor || null,
-      categoria: categoria || null,
-      conteudo: conteudo || null,
-      pdf_url: pdfUrl || null,
-      imagem_url: imagemUrl || null,
-      audiencias,
-      ativo,
-    });
-    setIsModalOpen(false);
+    setIsSaving(true);
+    setSaveError(null);
+    try {
+      await onSave({
+        id: editingItem?.id,
+        titulo,
+        subtitulo: subtitulo || null,
+        autor: autor || null,
+        categoria: categoria || null,
+        conteudo: conteudo || null,
+        pdf_url: pdfUrl || null,
+        imagem_url: imagemUrl || null,
+        audiencias,
+        ativo,
+      });
+      setIsModalOpen(false);
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : 'Não foi possível salvar o estudo.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const filtered = items.filter(
@@ -315,6 +327,12 @@ export const EstudosBiblicosView: React.FC<EstudosBiblicosViewProps> = ({
                 <span>Estudo Ativo</span>
               </label>
 
+              {saveError && (
+                <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-rose-700">
+                  {saveError}
+                </p>
+              )}
+
               <div className="border-t border-slate-100 pt-4 flex justify-end gap-2">
                 <button
                   type="button"
@@ -325,9 +343,10 @@ export const EstudosBiblicosView: React.FC<EstudosBiblicosViewProps> = ({
                 </button>
                 <button
                   type="submit"
+                  disabled={isSaving}
                   className="rounded-lg bg-slate-900 px-5 py-2 text-xs font-semibold text-white"
                 >
-                  Salvar
+                  {isSaving ? 'Salvando...' : 'Salvar'}
                 </button>
               </div>
             </form>

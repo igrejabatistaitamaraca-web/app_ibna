@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { DicaLouvor, AudienciaType } from '../types/supabase';
 import { Badge } from '../components/ui/Badge';
 import { ConfirmModal } from '../components/ui/ConfirmModal';
@@ -25,6 +26,7 @@ export const DicasLouvorView: React.FC<DicasLouvorViewProps> = ({ items, onSave,
   const [audiencias, setAudiencias] = useState<AudienciaType[]>(['todos']);
   const [ativo, setAtivo] = useState(true);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
@@ -62,6 +64,7 @@ export const DicasLouvorView: React.FC<DicasLouvorViewProps> = ({ items, onSave,
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsSaving(true);
     setSaveError(null);
     try {
       await onSave({
@@ -76,6 +79,8 @@ export const DicasLouvorView: React.FC<DicasLouvorViewProps> = ({ items, onSave,
       setIsModalOpen(false);
     } catch (error) {
       setSaveError(error instanceof Error ? error.message : 'Não foi possível salvar a dica de louvor.');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -272,9 +277,10 @@ export const DicasLouvorView: React.FC<DicasLouvorViewProps> = ({ items, onSave,
                 </button>
                 <button
                   type="submit"
+                  disabled={isSaving}
                   className="rounded-lg bg-slate-900 px-5 py-2 text-xs font-semibold text-white"
                 >
-                  Salvar
+                  {isSaving ? 'Salvando...' : 'Salvar'}
                 </button>
               </div>
             </form>

@@ -72,18 +72,9 @@ export async function uploadFileToBucket(
       .upload(fullPath, file, { upsert: true, cacheControl: '3600' });
 
     if (error) {
-      console.warn('Storage upload error (falling back to DataURL/Blob if restricted):', error);
-      // Fallback to Data URL if bucket or key is restricted in preview
-      return new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          resolve({ url: reader.result as string, error: null });
-        };
-        reader.onerror = () => {
-          resolve({ url: null, error: error.message });
-        };
-        reader.readAsDataURL(file);
-      });
+      // Nunca gravar uma Data URL disfarçada de upload: imagens em base64
+      // incham a tabela e deixam de funcionar corretamente entre dispositivos.
+      return { url: null, error: `Não foi possível enviar para o bucket “${bucketName}”: ${error.message}` };
     }
 
     const { data: publicUrlData } = client.storage.from(bucketName).getPublicUrl(data.path);
